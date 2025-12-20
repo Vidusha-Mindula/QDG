@@ -1,0 +1,267 @@
+@page "/configuration"
+@using QDG.Migration.Core.Interfaces
+@using QDG.Migration.Core.Models
+@rendermode InteractiveServer
+@inject IConfigurationService ConfigService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Database Configuration</PageTitle>
+
+<h1>Database Configuration</h1>
+
+<div class="card">
+    <div class="card-header">
+        <h5>Source and Destination Database Setup</h5>
+    </div>
+    <div class="card-body">
+        @if (errorMessage != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                @errorMessage
+                <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+            </div>
+        }
+
+        @if (successMessage != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                @successMessage
+                <button type="button" class="btn-close" @onclick="() => successMessage = null"></button>
+            </div>
+        }
+
+        <EditForm Model="config" OnValidSubmit="HandleSaveConfiguration">
+            <DataAnnotationsValidator />
+            
+            <div class="mb-4">
+                <h6>Configuration Name</h6>
+                <InputText class="form-control" @bind-Value="config.Name" placeholder="My Configuration" />
+                <ValidationMessage For="() => config.Name" />
+            </div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Source Database</h6>
+                    <div class="mb-3">
+                        <label class="form-label">Host</label>
+                        <InputText class="form-control" @bind-Value="config.SourceHost" placeholder="localhost" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Port</label>
+                        <InputNumber class="form-control" @bind-Value="config.SourcePort" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Database</label>
+                        <InputText class="form-control" @bind-Value="config.SourceDatabase" placeholder="source_db" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Username</label>
+                        <InputText class="form-control" @bind-Value="config.SourceUsername" placeholder="root" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <InputText type="password" class="form-control" @bind-Value="config.SourcePassword" />
+                    </div>
+                    <button type="button" class="btn btn-secondary" @onclick="TestSourceConnection" disabled="@isTestingSource">
+                        @if (isTestingSource)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                        }
+                        Test Connection
+                    </button>
+                </div>
+
+                <div class="col-md-6">
+                    <h6>Destination Database</h6>
+                    <div class="mb-3">
+                        <label class="form-label">Host</label>
+                        <InputText class="form-control" @bind-Value="config.DestinationHost" placeholder="localhost" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Port</label>
+                        <InputNumber class="form-control" @bind-Value="config.DestinationPort" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Database</label>
+                        <InputText class="form-control" @bind-Value="config.DestinationDatabase" placeholder="dest_db" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Username</label>
+                        <InputText class="form-control" @bind-Value="config.DestinationUsername" placeholder="root" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <InputText type="password" class="form-control" @bind-Value="config.DestinationPassword" />
+                    </div>
+                    <button type="button" class="btn btn-secondary" @onclick="TestDestinationConnection" disabled="@isTestingDestination">
+                        @if (isTestingDestination)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                        }
+                        Test Connection
+                    </button>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                    }
+                    Save Configuration
+                </button>
+                <button type="button" class="btn btn-secondary ms-2" @onclick="LoadConfigurations">Load Saved</button>
+            </div>
+        </EditForm>
+
+        @if (savedConfigs.Any())
+        {
+            <div class="mt-4">
+                <h6>Saved Configurations</h6>
+                <div class="list-group">
+                    @foreach (var savedConfig in savedConfigs)
+                    {
+                        <button type="button" class="list-group-item list-group-item-action" @onclick="() => LoadConfiguration(savedConfig)">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">@savedConfig.Name</h6>
+                                <small>@savedConfig.CreatedAt.ToString("yyyy-MM-dd")</small>
+                            </div>
+                            <small>@savedConfig.SourceDatabase → @savedConfig.DestinationDatabase</small>
+                        </button>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private DatabaseConfig config = new()
+    {
+        Name = "",
+        SourceHost = "localhost",
+        SourcePort = 3306,
+        SourceDatabase = "",
+        SourceUsername = "root",
+        SourcePassword = "",
+        DestinationHost = "localhost",
+        DestinationPort = 3306,
+        DestinationDatabase = "",
+        DestinationUsername = "root",
+        DestinationPassword = ""
+    };
+
+    private List<DatabaseConfig> savedConfigs = new();
+    private string? errorMessage;
+    private string? successMessage;
+    private bool isTestingSource;
+    private bool isTestingDestination;
+    private bool isSaving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadConfigurations();
+    }
+
+    private async Task LoadConfigurations()
+    {
+        savedConfigs = await ConfigService.GetAllConfigurationsAsync();
+    }
+
+    private async Task LoadConfiguration(DatabaseConfig savedConfig)
+    {
+        config = savedConfig;
+        StateHasChanged();
+    }
+
+    private async Task TestSourceConnection()
+    {
+        isTestingSource = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var result = await ConfigService.TestConnectionAsync(config.SourceConnectionString);
+            if (result)
+            {
+                successMessage = "Source connection successful!";
+            }
+            else
+            {
+                errorMessage = "Source connection failed!";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Source connection error: {ex.Message}";
+        }
+        finally
+        {
+            isTestingSource = false;
+        }
+    }
+
+    private async Task TestDestinationConnection()
+    {
+        isTestingDestination = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var result = await ConfigService.TestConnectionAsync(config.DestinationConnectionString);
+            if (result)
+            {
+                successMessage = "Destination connection successful!";
+            }
+            else
+            {
+                errorMessage = "Destination connection failed!";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Destination connection error: {ex.Message}";
+        }
+        finally
+        {
+            isTestingDestination = false;
+        }
+    }
+
+    private async Task HandleSaveConfiguration()
+    {
+        isSaving = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            config.CreatedAt = DateTime.UtcNow;
+            config.UpdatedAt = DateTime.UtcNow;
+
+            if (config.Id == 0)
+            {
+                await ConfigService.SaveConfigurationAsync(config);
+                successMessage = "Configuration saved successfully!";
+            }
+            else
+            {
+                await ConfigService.UpdateConfigurationAsync(config);
+                successMessage = "Configuration updated successfully!";
+            }
+
+            await LoadConfigurations();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error saving configuration: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}

@@ -1,0 +1,92 @@
+@{
+    ViewData["Title"] = "Home";
+}
+
+<div class="text-center">
+    <h1 class="display-4">QDG Database Migration Tool</h1>
+    <p class="lead">Migrate database tables with relationships, filters, and field mappings</p>
+</div>
+
+@if (ViewBag.HasActiveConfig == false)
+{
+    <div class="alert alert-warning mt-4" role="alert">
+        <h5 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> No Active Configuration</h5>
+        <p>Before starting a migration, you need to configure your database connections.</p>
+        <hr>
+        <a asp-controller="Configuration" asp-action="Create" class="btn btn-primary">
+            <i class="bi bi-gear"></i> Create Configuration Now
+        </a>
+    </div>
+}
+
+<div class="row mt-5">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-gear"></i> Configure
+                </h5>
+                <p class="card-text">Setup source and destination database connections</p>
+                <a asp-controller="Configuration" asp-action="Index" class="btn btn-primary">
+                    Manage Configurations
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card @(ViewBag.HasActiveConfig == false ? "border-secondary" : "")">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-arrow-repeat"></i> Migrate
+                </h5>
+                <p class="card-text">Start a new migration workflow</p>
+                @if (ViewBag.HasActiveConfig == false)
+                {
+                    <button class="btn btn-success" disabled title="Please configure database connections first">
+                        Start Migration
+                    </button>
+                    <small class="text-muted d-block mt-2">Configure database first</small>
+                }
+                else
+                {
+                    <a asp-controller="Migration" asp-action="TableSelection" class="btn btn-success">
+                        Start Migration
+                    </a>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-clock-history"></i> History
+                </h5>
+                <p class="card-text">View past migration sessions</p>
+                <a asp-controller="Session" asp-action="Index" class="btn btn-secondary">
+                    View Sessions
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-5">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Features</h5>
+            </div>
+            <div class="card-body">
+                <ul>
+                    <li><strong>Intelligent Dependency Resolution:</strong> Automatically resolves table relationships and migration order</li>
+                    <li><strong>Customizable Filters:</strong> Apply WHERE conditions to migrate only specific data</li>
+                    <li><strong>Field Mapping:</strong> Map source columns to destination columns with renaming</li>
+                    <li><strong>Auto-Increment Handling:</strong> Skip ID columns and let destination generate new IDs</li>
+                    <li><strong>Progress Tracking:</strong> Real-time progress updates and detailed logging</li>
+                    <li><strong>Error Handling:</strong> Graceful error handling with detailed error reports</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>

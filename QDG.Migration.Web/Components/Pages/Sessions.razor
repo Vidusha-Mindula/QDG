@@ -1,0 +1,133 @@
+@page "/sessions"
+@rendermode InteractiveServer
+@inject IMigrationService MigrationService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Migration Sessions</PageTitle>
+
+<h1>Migration Sessions</h1>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Recent Sessions</h5>
+        <button class="btn btn-primary" @onclick="LoadSessions">
+            <span class="bi bi-arrow-clockwise"></span> Refresh
+        </button>
+    </div>
+    <div class="card-body">
+        @if (isLoading)
+        {
+            <div class="text-center p-4">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        }
+        else if (!sessions.Any())
+        {
+            <div class="alert alert-info">
+                No migration sessions found. Create a new session from the Configuration page.
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Session ID</th>
+                            <th>Created</th>
+                            <th>Status</th>
+                            <th>Tables</th>
+                            <th>Started</th>
+                            <th>Completed</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var session in sessions)
+                        {
+                            <tr>
+                                <td><code>@session.SessionGuid.ToString().Substring(0, 8)</code></td>
+                                <td>@session.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                                <td>
+                                    <span class="badge @GetStatusBadgeClass(session.Status)">
+                                        @session.Status
+                                    </span>
+                                </td>
+                                <td>@session.SelectedTables?.Count ?? 0</td>
+                                <td>@(session.StartedAt?.ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
+                                <td>@(session.CompletedAt?.ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
+                                <td>
+                                    @if (session.Status == MigrationStatus.Completed || session.Status == MigrationStatus.Failed)
+                                    {
+                                        <button class="btn btn-sm btn-info" @onclick="() => ViewResults(session.SessionGuid)">
+                                            View Results
+                                        </button>
+                                    }
+                                    @if (session.Status == MigrationStatus.Draft)
+                                    {
+                                        <button class="btn btn-sm btn-primary" @onclick="() => ContinueSession(session.SessionGuid)">
+                                            Continue
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<MigrationSession> sessions = new();
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSessions();
+    }
+
+    private async Task LoadSessions()
+    {
+        isLoading = true;
+        try
+        {
+            sessions = await MigrationService.GetRecentSessionsAsync(20);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading sessions: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private string GetStatusBadgeClass(MigrationStatus status)
+    {
+        return status switch
+        {
+            MigrationStatus.Draft => "bg-secondary",
+            MigrationStatus.Ready => "bg-info",
+            MigrationStatus.Running => "bg-primary",
+            MigrationStatus.Completed => "bg-success",
+            MigrationStatus.Failed => "bg-danger",
+            MigrationStatus.Cancelled => "bg-warning",
+            _ => "bg-secondary"
+        };
+    }
+
+    private void ViewResults(Guid sessionGuid)
+    {
+        NavigationManager.NavigateTo($"/results/{sessionGuid}");
+    }
+
+    private void ContinueSession(Guid sessionGuid)
+    {
+        NavigationManager.NavigateTo($"/table-selection/{sessionGuid}");
+    }
+}

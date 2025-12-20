@@ -1,0 +1,202 @@
+:root {
+    --color-background: #1a1a1a;
+    --color-surface: #2d2d2d;
+    --color-surface-light: #3d3d3d;
+    --color-border: #4d4d4d;
+    --color-text-primary: #ffffff;
+    --color-text-secondary: #b0b0b0;
+    --color-primary: #666666;
+    --color-success: #4caf50;
+    --color-error: #f44336;
+    --color-warning: #ff9800;
+    --color-info: #2196f3;
+}
+
+body {
+    background-color: var(--color-background);
+    color: var(--color-text-primary);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.navbar-dark {
+    background-color: var(--color-surface) !important;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.card {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-primary);
+}
+
+.card-header {
+    background-color: var(--color-surface-light);
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text-primary);
+}
+
+.table {
+    color: var(--color-text-primary);
+}
+
+.table thead {
+    background-color: var(--color-surface-light);
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+    background-color: rgba(255, 255, 255, 0.02);
+}
+
+.table-hover tbody tr:hover {
+    background-color: var(--color-surface-light);
+}
+
+.form-control {
+    background-color: var(--color-surface-light);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-primary);
+}
+
+.form-control:focus {
+    background-color: var(--color-surface-light);
+    color: var(--color-text-primary);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 0.2rem rgba(102, 102, 102, 0.25);
+}
+
+.form-control::placeholder {
+    color: var(--color-text-secondary);
+}
+
+.form-label {
+    color: var(--color-text-primary);
+}
+
+.btn-primary {
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+    color: var(--color-text-primary);
+}
+
+.btn-primary:hover {
+    background-color: var(--color-surface-light);
+    border-color: var(--color-border);
+}
+
+.btn-secondary {
+    background-color: var(--color-surface-light);
+    border-color: var(--color-border);
+    color: var(--color-text-primary);
+}
+
+.btn-secondary:hover {
+    background-color: var(--color-border);
+}
+
+.alert {
+    border-radius: 4px;
+}
+
+.alert-info {
+    background-color: rgba(33, 150, 243, 0.1);
+    border-color: var(--color-info);
+    color: var(--color-info);
+}
+
+.alert-success {
+    background-color: rgba(76, 175, 80, 0.1);
+    border-color: var(--color-success);
+    color: var(--color-success);
+}
+
+.alert-danger {
+    background-color: rgba(244, 67, 54, 0.1);
+    border-color: var(--color-error);
+    color: var(--color-error);
+}
+
+.alert-warning {
+    background-color: rgba(255, 152, 0, 0.1);
+    border-color: var(--color-warning);
+    color: var(--color-warning);
+}
+
+.badge {
+    font-size: 0.85em;
+}
+
+.footer {
+    background-color: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    position: fixed;
+    bottom: 0px;
+    width: 100vw;
+}
+
+.bg-light {
+    background-color: var(--color-surface-light) !important;
+}
+
+.text-muted {
+    color: var(--color-text-secondary) !important;
+}
+
+.log-entry {
+    padding: 2px 0;
+    font-size: 12px;
+}
+
+.progress {
+    background-color: var(--color-surface-light);
+}
+
+code {
+    color: var(--color-info);
+    background-color: var(--color-surface-light);
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+.list-group-item {
+    background-color: var(--color-surface);
+    border-color: var(--color-border);
+    color: var(--color-text-primary);
+}
+
+.list-group-item:hover {
+    background-color: var(--color-surface-light);
+}
+
+.text-danger {
+    color: var(--color-error) !important;
+}
+
+.text-success {
+    color: var(--color-success) !important;
+}
+
+.text-warning {
+    color: var(--color-warning) !important;
+}
+
+.text-info {
+    color: var(--color-info) !important;
+}
+
+html {
+    font-size: 14px;
+}
+
+@media (min-width: 768px) {
+    html {
+        font-size: 16px;
+    }
+}
+
+.btn:focus,
+.btn:active:focus,
+.btn-link.nav-link:focus,
+.form-control:focus,
+.form-check-input:focus {
+    box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+}

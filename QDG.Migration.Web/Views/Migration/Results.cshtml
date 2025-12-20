@@ -1,0 +1,131 @@
+@model MigrationResult
+
+@{
+    ViewData["Title"] = "Migration Results";
+    var isSuccess = Model.Status == MigrationStatus.Completed;
+}
+
+<div class="card">
+    <div class="card-header">
+        <h2>Migration Results</h2>
+    </div>
+    <div class="card-body">
+        @if (isSuccess)
+        {
+            <div class="alert alert-success">
+                <h4><i class="bi bi-check-circle"></i> Migration Completed Successfully!</h4>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-danger">
+                <h4><i class="bi bi-exclamation-triangle"></i> Migration Completed with Errors</h4>
+            </div>
+        }
+
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h6 class="card-title">Duration</h6>
+                        <h4>@Model.Duration.ToString(@"hh\:mm\:ss")</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h6 class="card-title">Tables Completed</h6>
+                        <h4>@Model.TablesCompleted / @(Model.TablesCompleted + Model.TablesFailed)</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h6 class="card-title">Rows Copied</h6>
+                        <h4>@Model.TotalRowsCopied.ToString("N0")</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h6 class="card-title">Errors</h6>
+                        <h4 class="@(Model.TotalErrors > 0 ? "text-danger" : "text-success")">
+                            @Model.TotalErrors
+                        </h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <h5>Table Results</h5>
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Table Name</th>
+                        <th>Source Rows</th>
+                        <th>Rows Copied</th>
+                        <th>Rows Skipped</th>
+                        <th>Errors</th>
+                        <th>Duration</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var table in Model.TableResults)
+                    {
+                        <tr>
+                            <td>@table.TableName</td>
+                            <td>@table.SourceRowCount.ToString("N0")</td>
+                            <td>@table.RowsCopied.ToString("N0")</td>
+                            <td>@table.RowsSkipped.ToString("N0")</td>
+                            <td class="@(table.ErrorCount > 0 ? "text-danger" : "")">
+                                @table.ErrorCount
+                            </td>
+                            <td>@table.Duration.ToString(@"hh\:mm\:ss")</td>
+                            <td>
+                                @if (table.Success)
+                                {
+                                    <span class="badge bg-success">Success</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">Failed</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (Model.Errors != null && Model.Errors.Any())
+        {
+            <h5 class="mt-4">Errors</h5>
+            <div class="alert alert-danger">
+                <ul class="mb-0">
+                    @foreach (var error in Model.Errors.Take(10))
+                    {
+                        <li>
+                            <strong>@error.TableName</strong> (Row @error.RowIndex): @error.ErrorMessage
+                        </li>
+                    }
+                </ul>
+                @if (Model.Errors.Count > 10)
+                {
+                    <p class="mb-0 mt-2"><em>... and @(Model.Errors.Count - 10) more errors</em></p>
+                }
+            </div>
+        }
+
+        <div class="mt-4">
+            <a asp-controller="Migration" asp-action="TableSelection" class="btn btn-primary">
+                <i class="bi bi-arrow-repeat"></i> New Migration
+            </a>
+            <a asp-controller="Home" asp-action="Index" class="btn btn-secondary">Home</a>
+        </div>
+    </div>
+</div>

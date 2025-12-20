@@ -1,0 +1,222 @@
+@model TableSelectionViewModel
+
+@{
+    ViewData["Title"] = "Select Tables";
+}
+
+<form asp-action="TableSelection" method="post" id="tableSelectionForm">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="sessionId" value="@Model.SessionId" />
+    <input type="hidden" id="persistentSelectedTables" name="selectedTables" />
+
+    <div class="card">
+        <div class="card-header">
+            <h2>Select Tables to Migrate</h2>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <button type="button" class="btn btn-secondary btn-sm" id="selectAllBtn">Select All</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="deselectAllBtn">Deselect All</button>
+            </div>
+
+            <div class="table-responsive" style="overflow-y: auto;">
+                <table class="table table-hover table-striped" id="tablesTable">
+                    <thead class="table-dark" style="position: sticky; top: 0; z-index: 10;">
+                        <tr>
+                            <th width="50">
+                                <input type="checkbox" id="selectAllCheckbox" />
+                            </th>
+                            <th>Table Name</th>
+                            <th>Row Count</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var table in Model.Tables)
+                        {
+                            <tr>
+                                <td>
+                                    <input type="checkbox"
+                                           value="@table.TableName"
+                                           class="table-checkbox" />
+                                </td>
+                                <td>@table.TableName</td>
+                                <td>@table.RowCount.ToString("N0")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="alert alert-info mt-3">
+                <strong>Selected:</strong> <span id="selectedCount">0</span> tables
+                (<span id="totalRows">0</span> rows)
+            </div>
+        </div>
+
+        <div class="card-footer bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+                <a asp-controller="Home" asp-action="Index" class="btn btn-secondary">
+                    Cancel
+                </a>
+
+                <div class="text-muted">
+                    <small>Table Selection</small>
+                </div>
+
+                <button type="submit" class="btn btn-success" id="nextBtn" disabled>
+                    Next <i class="bi bi-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</form>
+
+@section Scripts {
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+
+    <script>
+        $(document).ready(function() {
+            const dataTable = $('#tablesTable').DataTable({
+                pageLength: 100,
+                lengthMenu: [[50, 100, 200, 500, -1], [50, 100, 200, 500, "All"]],
+                order: [[1, 'asc']],
+                columnDefs: [
+                    { orderable: false, targets: 0 }
+                ],
+                language: {
+                    search: "Search tables:",
+                    lengthMenu: "Show _MENU_ tables per page",
+                    info: "Showing _START_ to _END_ of _TOTAL_ tables",
+                    infoFiltered: "(filtered from _MAX_ total tables)"
+                },
+                scrollY: '400px',
+                scrollCollapse: true,
+                dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
+                     '<"row"<"col-sm-12"tr>>' +
+                     '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>'
+            });
+
+            const selectedTables = new Set();
+            const $selectAllCheckbox = $('#selectAllCheckbox');
+            const $nextBtn = $('#nextBtn');
+            const $selectedCount = $('#selectedCount');
+            const $totalRows = $('#totalRows');
+            const $persistentInput = $('#persistentSelectedTables');
+
+            function syncCheckboxesToSet() {
+                dataTable.rows({ search: 'applied' }).every(function() {
+                    const checkbox = $(this.node()).find('.table-checkbox');
+                    const tableName = checkbox.val();
+
+                    if (checkbox.prop('checked')) {
+                        selectedTables.add(tableName);
+                    } else {
+                        selectedTables.delete(tableName);
+                    }
+                });
+            }
+
+            function syncSetToCheckboxes() {
+                dataTable.rows({ search: 'applied' }).every(function() {
+                    const checkbox = $(this.node()).find('.table-checkbox');
+                    const tableName = checkbox.val();
+                    checkbox.prop('checked', selectedTables.has(tableName));
+                });
+            }
+
+            function updateStats() {
+                let totalRows = 0;
+
+                dataTable.rows({ search: 'applied' }).every(function() {
+                    const checkbox = $(this.node()).find('.table-checkbox');
+                    if (selectedTables.has(checkbox.val())) {
+                        const rowCountText = $(this.node()).find('td:eq(2)').text().replace(/,/g, '');
+                        totalRows += parseInt(rowCountText) || 0;
+                    }
+                });
+
+                $selectedCount.text(selectedTables.size);
+                $totalRows.text(totalRows.toLocaleString());
+                $nextBtn.prop('disabled', selectedTables.size === 0);
+
+                updateHeaderCheckbox();
+            }
+
+            function updateHeaderCheckbox() {
+                const visibleCheckboxes = dataTable.rows({ page: 'current', search: 'applied' }).nodes().toArray()
+                    .map(row => $(row).find('.table-checkbox').get(0));
+
+                if (visibleCheckboxes.length === 0) {
+                    $selectAllCheckbox.prop('checked', false);
+                    $selectAllCheckbox.prop('indeterminate', false);
+                    return;
+                }
+
+                const checkedCount = visibleCheckboxes.filter(cb => selectedTables.has($(cb).val())).length;
+
+                if (checkedCount === 0) {
+                    $selectAllCheckbox.prop('checked', false);
+                    $selectAllCheckbox.prop('indeterminate', false);
+                } else if (checkedCount === visibleCheckboxes.length) {
+                    $selectAllCheckbox.prop('checked', true);
+                    $selectAllCheckbox.prop('indeterminate', false);
+                } else {
+                    $selectAllCheckbox.prop('checked', false);
+                    $selectAllCheckbox.prop('indeterminate', true);
+                }
+            }
+
+            $(document).on('change', '.table-checkbox', function() {
+                syncCheckboxesToSet();
+                updateStats();
+            });
+
+            $selectAllCheckbox.on('change', function() {
+                const isChecked = this.checked;
+
+                dataTable.rows({ page: 'current', search: 'applied' }).every(function() {
+                    const checkbox = $(this.node()).find('.table-checkbox');
+                    if (isChecked) {
+                        selectedTables.add(checkbox.val());
+                    } else {
+                        selectedTables.delete(checkbox.val());
+                    }
+                    checkbox.prop('checked', isChecked);
+                });
+
+                updateStats();
+            });
+
+            $('#selectAllBtn').on('click', function() {
+                dataTable.rows({ search: 'applied' }).every(function() {
+                    const checkbox = $(this.node()).find('.table-checkbox');
+                    selectedTables.add(checkbox.val());
+                    checkbox.prop('checked', true);
+                });
+                updateStats();
+            });
+
+            $('#deselectAllBtn').on('click', function() {
+                dataTable.rows({ search: 'applied' }).every(function() {
+                    const checkbox = $(this.node()).find('.table-checkbox');
+                    selectedTables.delete(checkbox.val());
+                    checkbox.prop('checked', false);
+                });
+                updateStats();
+            });
+
+            dataTable.on('draw', function() {
+                syncSetToCheckboxes();
+                updateStats();
+            });
+
+            $('#tableSelectionForm').on('submit', function(e) {
+                $persistentInput.val(Array.from(selectedTables).join(','));
+            });
+
+            updateStats();
+        });
+    </script>
+}

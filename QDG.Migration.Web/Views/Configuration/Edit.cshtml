@@ -1,0 +1,119 @@
+@model ConfigurationViewModel
+
+@{
+    ViewData["Title"] = "Edit Configuration";
+}
+
+<div class="card">
+    <div class="card-header">
+        <h2>Edit Configuration</h2>
+    </div>
+    <div class="card-body">
+        <form asp-action="Edit" method="post" id="configForm">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="Id" />
+            
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+
+            <div class="mb-4">
+                <label asp-for="Name" class="form-label"></label>
+                <input asp-for="Name" class="form-control" />
+                <span asp-validation-for="Name" class="text-danger"></span>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <h5 class="mb-3">Source Database</h5>
+                    
+                    <div class="mb-3">
+                        <label asp-for="SourceHost" class="form-label"></label>
+                        <input asp-for="SourceHost" class="form-control" />
+                        <span asp-validation-for="SourceHost" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="SourcePort" class="form-label"></label>
+                        <input asp-for="SourcePort" class="form-control" type="number" />
+                        <span asp-validation-for="SourcePort" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="SourceDatabase" class="form-label"></label>
+                        <input asp-for="SourceDatabase" class="form-control" />
+                        <span asp-validation-for="SourceDatabase" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="SourceUsername" class="form-label"></label>
+                        <input asp-for="SourceUsername" class="form-control" />
+                        <span asp-validation-for="SourceUsername" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="SourcePassword" class="form-label"></label>
+                        <input asp-for="SourcePassword" class="form-control" type="password" />
+                        <span asp-validation-for="SourcePassword" class="text-danger"></span>
+                    </div>
+
+                    <button type="button" class="btn btn-secondary" id="testSourceBtn">
+                        <span class="spinner-border spinner-border-sm d-none" id="sourceSpinner"></span>
+                        Test Source Connection
+                    </button>
+                    <div id="sourceResult" class="mt-2"></div>
+                </div>
+
+                <div class="col-md-6">
+                    <h5 class="mb-3">Destination Database</h5>
+                    
+                    <div class="mb-3">
+                        <label asp-for="DestinationHost" class="form-label"></label>
+                        <input asp-for="DestinationHost" class="form-control" />
+                        <span asp-validation-for="DestinationHost" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="DestinationPort" class="form-label"></label>
+                        <input asp-for="DestinationPort" class="form-control" type="number" />
+                        <span asp-validation-for="DestinationPort" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="DestinationDatabase" class="form-label"></label>
+                        <input asp-for="DestinationDatabase" class="form-control" />
+                        <span asp-validation-for="DestinationDatabase" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="DestinationUsername" class="form-label"></label>
+                        <input asp-for="DestinationUsername" class="form-control" />
+                        <span asp-validation-for="DestinationUsername" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="DestinationPassword" class="form-label"></label>
+                        <input asp-for="DestinationPassword" class="form-control" type="password" />
+                        <span asp-validation-for="DestinationPassword" class="text-danger"></span>
+                    </div>
+
+                    <button type="button" class="btn btn-secondary" id="testDestBtn">
+                        <span class="spinner-border spinner-border-sm d-none" id="destSpinner"></span>
+                        Test Destination Connection
+                    </button>
+                    <div id="destResult" class="mt-2"></div>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save"></i> Update Configuration
+                </button>
+                <a asp-action="Index" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/configuration.js" asp-append-version="true"></script>
+}

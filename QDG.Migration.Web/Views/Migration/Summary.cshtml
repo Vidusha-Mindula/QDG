@@ -1,0 +1,95 @@
+@model MigrationSession
+
+@{
+    ViewData["Title"] = "Migration Summary";
+}
+
+<div class="card">
+    <div class="card-header">
+        <h2>Migration Summary</h2>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-warning">
+            <strong>Warning:</strong> This operation cannot be undone. Please review all settings before proceeding.
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <h5>Database Configuration</h5>
+                <table class="table table-sm">
+                    <tr>
+                        <th>Source Database:</th>
+                        <td>@Model.Configuration.SourceDatabase @Model.Configuration.SourceHost</td>
+                    </tr>
+                    <tr>
+                        <th>Destination Database:</th>
+                        <td>@Model.Configuration.DestinationDatabase @Model.Configuration.DestinationHost</td>
+                    </tr>
+                </table>
+            </div>
+            <div class="col-md-6">
+                <h5>Migration Details</h5>
+                <table class="table table-sm">
+                    <tr>
+                        <th>Session ID:</th>
+                        <td><code>@Model.SessionGuid</code></td>
+                    </tr>
+                    <tr>
+                        <th>Created:</th>
+                        <td>@Model.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                    </tr>
+                    <tr>
+                        <th>Status:</th>
+                        <td><span class="badge bg-info">@Model.Status</span></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <h5 class="mt-4">Selected Tables</h5>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Table Name</th>
+                        <th>Row Count</th>
+                        <th>Filter</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var table in Model.SelectedTables.OrderBy(t => t.SortOrder))
+                    {
+                        <tr>
+                            <td>@(Model.SelectedTables.IndexOf(table) + 1)</td>
+                            <td>@table.TableName</td>
+                            <td>@table.RowCount.ToString("N0")</td>
+                            <td>
+                                @if (string.IsNullOrEmpty(table.FilterCondition))
+                                {
+                                    <span class="text-muted">No filter</span>
+                                }
+                                else
+                                {
+                                    <code>@table.FilterCondition</code>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <form asp-action="StartMigration" asp-route-sessionId="@Model.SessionGuid" method="post" class="mt-4">
+            @Html.AntiForgeryToken()
+            
+            <button type="submit" class="btn btn-success btn-lg">
+                <i class="bi bi-play-fill"></i> Start Migration
+            </button>
+            <a asp-action="FieldMapping" asp-route-sessionId="@Model.SessionGuid" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+            <a asp-controller="Home" asp-action="Index" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>

@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <ItemGroup>
+      <ProjectReference Include="..\QDG.Migration.Core\QDG.Migration.Core.csproj" />
+      <ProjectReference Include="..\QDG.Migration.Data\QDG.Migration.Data.csproj" />
+      <ProjectReference Include="..\QDG.Migration.Core\QDG.Migration.Core.csproj" />
+      <ProjectReference Include="..\QDG.Migration.Data\QDG.Migration.Data.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+      <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.8" />
+    </ItemGroup>
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <RootNamespace>QDG_DB_Migrator</RootNamespace>
+    </PropertyGroup>
+
+</Project>

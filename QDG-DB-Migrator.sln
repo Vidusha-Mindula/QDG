@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+#
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QDG.Migration.Web", "QDG.Migration.Web\QDG.Migration.Web.csproj", "{CA40CE20-D75B-478D-8D34-19F664499940}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QDG.Migration.Core", "QDG.Migration.Core\QDG.Migration.Core.csproj", "{DA850F96-2A28-478E-86D6-879BC5BE245C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QDG.Migration.Data", "QDG.Migration.Data\QDG.Migration.Data.csproj", "{CBF47AFA-06F9-4FAA-A1EC-1E298EFFD7EC}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{CA40CE20-D75B-478D-8D34-19F664499940}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CA40CE20-D75B-478D-8D34-19F664499940}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CA40CE20-D75B-478D-8D34-19F664499940}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CA40CE20-D75B-478D-8D34-19F664499940}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DA850F96-2A28-478E-86D6-879BC5BE245C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DA850F96-2A28-478E-86D6-879BC5BE245C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DA850F96-2A28-478E-86D6-879BC5BE245C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DA850F96-2A28-478E-86D6-879BC5BE245C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CBF47AFA-06F9-4FAA-A1EC-1E298EFFD7EC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CBF47AFA-06F9-4FAA-A1EC-1E298EFFD7EC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CBF47AFA-06F9-4FAA-A1EC-1E298EFFD7EC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CBF47AFA-06F9-4FAA-A1EC-1E298EFFD7EC}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+	EndGlobalSection
+EndGlobal

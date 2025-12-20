@@ -1,0 +1,116 @@
+@model FilterConfigViewModel
+
+@{
+    ViewData["Title"] = "Configure Filters";
+}
+
+<form asp-action="FilterConfig" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="sessionId" value="@Model.SessionId" />
+
+    <div class="card">
+        <div class="card-header">
+            <h2>Configure Table Filters</h2>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-info">
+                <strong>Info:</strong> Enter SQL WHERE conditions to filter data. Leave blank to migrate all rows.
+            </div>
+
+            @for (int i = 0; i < Model.TableFilters.Count; i++)
+            {
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h5>@Model.TableFilters[i].TableName</h5>
+                        <small class="text-muted">@Model.TableFilters[i].RowCount.ToString("N0") rows</small>
+                    </div>
+                    <div class="card-body">
+                        <input type="hidden" name="filters[@i].TableName" value="@Model.TableFilters[i].TableName" />
+                        <input type="hidden" name="filters[@i].RowCount" value="@Model.TableFilters[i].RowCount" />
+
+                        <div class="mb-2">
+                            <label class="form-label">Filter Condition</label>
+                            <input type="text"
+                                   name="filters[@i].FilterCondition"
+                                   value="@Model.TableFilters[i].FilterCondition"
+                                   class="form-control filter-input"
+                                   data-table="@Model.TableFilters[i].TableName"
+                                   data-index="@i"
+                                   placeholder="e.g., id > 100 AND status = 'active'" />
+                        </div>
+
+                        <button type="button" class="btn btn-sm btn-secondary test-filter-btn" data-index="@i">
+                            <span class="spinner-border spinner-border-sm d-none"></span>
+                            Test Filter
+                        </button>
+
+                        <div class="preview-result mt-2" id="preview-@i"></div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="card-footer bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+                <a asp-action="TableSelection" asp-route-sessionId="@Model.SessionId" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left"></i> Back
+                </a>
+
+                <div class="text-muted">
+                    <small>Filter Configuration</small>
+                </div>
+
+                <button type="submit" class="btn btn-success">
+                    Next <i class="bi bi-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</form>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            $('.test-filter-btn').on('click', async function() {
+                const $btn = $(this);
+                const index = $btn.data('index');
+                const $input = $(`.filter-input[data-index="${index}"]`);
+                const tableName = $input.data('table');
+                const filter = $input.val();
+                const $preview = $(`#preview-${index}`);
+                const $spinner = $btn.find('.spinner-border');
+
+                $spinner.removeClass('d-none');
+                $btn.prop('disabled', true);
+                $preview.html('');
+
+                try {
+                    const response = await fetch('/api/table/test-filter', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ tableName, filter, originalCount: 0 })
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        $preview.html(`<div class="alert alert-success">
+                            <strong>Valid!</strong> Filter will return approximately <strong>${result.count.toLocaleString()}</strong> rows
+                        </div>`);
+                    } else {
+                        $preview.html(`<div class="alert alert-danger">
+                            <strong>Error:</strong> ${result.error}
+                        </div>`);
+                    }
+                } catch (error) {
+                    $preview.html(`<div class="alert alert-danger">
+                        <strong>Error:</strong> ${error.message}
+                    </div>`);
+                } finally {
+                    $spinner.addClass('d-none');
+                    $btn.prop('disabled', false);
+                }
+            });
+        });
+    </script>
+}

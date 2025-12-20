@@ -1,0 +1,349 @@
+@model IEnumerable<MigrationSession>
+
+@{
+    ViewData["Title"] = "Migration Sessions";
+    var currentStatus = ViewBag.CurrentStatus as MigrationStatus?;
+    var currentSortBy = ViewBag.CurrentSortBy as string ?? "created";
+    var currentDescending = ViewBag.CurrentDescending as bool? ?? true;
+    var statistics = ViewBag.Statistics as Dictionary<MigrationStatus, int> ?? new Dictionary<MigrationStatus, int>();
+    var totalSessions = Model?.Count() ?? 0;
+}
+
+<div class="container-fluid">
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="card text-center @(currentStatus == null ? "border-primary" : "")">
+                <div class="card-body py-3">
+                    <h3 class="mb-0">@totalSessions</h3>
+                    <small class="text-muted">Total Sessions</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center @(currentStatus == MigrationStatus.Draft ? "border-secondary" : "")">
+                <div class="card-body py-3">
+                    <h3 class="mb-0 text-secondary">@(statistics.GetValueOrDefault(MigrationStatus.Draft, 0))</h3>
+                    <small class="text-muted">Draft</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center @(currentStatus == MigrationStatus.Ready ? "border-info" : "")">
+                <div class="card-body py-3">
+                    <h3 class="mb-0 text-info">@(statistics.GetValueOrDefault(MigrationStatus.Ready, 0))</h3>
+                    <small class="text-muted">Ready</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center @(currentStatus == MigrationStatus.Running ? "border-primary" : "")">
+                <div class="card-body py-3">
+                    <h3 class="mb-0 text-primary">@(statistics.GetValueOrDefault(MigrationStatus.Running, 0))</h3>
+                    <small class="text-muted">Running</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center @(currentStatus == MigrationStatus.Completed ? "border-success" : "")">
+                <div class="card-body py-3">
+                    <h3 class="mb-0 text-success">@(statistics.GetValueOrDefault(MigrationStatus.Completed, 0))</h3>
+                    <small class="text-muted">Completed</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center @(currentStatus == MigrationStatus.Failed ? "border-danger" : "")">
+                <div class="card-body py-3">
+                    <h3 class="mb-0 text-danger">@(statistics.GetValueOrDefault(MigrationStatus.Failed, 0))</h3>
+                    <small class="text-muted">Failed</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Card -->
+    <div class="card">
+        <div class="card-header">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <h2 class="mb-0">Migration Sessions</h2>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter and Sort Bar -->
+        <div class="card-body border-bottom bg-light">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-12 mb-3">
+                    <label class="form-label fw-bold">Filter by Status</label>
+                    <div class="btn-group w-100" role="group">
+                        <a href="@Url.Action("Index", new { sortBy = currentSortBy, descending = currentDescending })"
+                           class="btn @(currentStatus == null ? "btn-primary" : "btn-outline-secondary")">
+                            All
+                        </a>
+                        @foreach (MigrationStatus status in Enum.GetValues(typeof(MigrationStatus)))
+                        {
+                            var btnClass = currentStatus == status ? GetStatusButtonClass(status) : "btn-outline-secondary";
+                            <a href="@Url.Action("Index", new { status = status, sortBy = currentSortBy, descending = currentDescending })"
+                               class="btn @btnClass">
+                                @status
+                            </a>
+                        }
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Sort By</label>
+                    <select id="sortBySelect" class="form-select">
+                        <option value="created" selected="@(currentSortBy == "created")">Date Created</option>
+                        <option value="started" selected="@(currentSortBy == "started")">Date Started</option>
+                        <option value="completed" selected="@(currentSortBy == "completed")">Date Completed</option>
+                        <option value="status" selected="@(currentSortBy == "status")">Status</option>
+                    </select>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Order</label>
+                    <select id="orderSelect" class="form-select">
+                        <option value="true" selected="@currentDescending">Newest First</option>
+                        <option value="false" selected="@(!currentDescending)">Oldest First</option>
+                    </select>
+                </div>
+
+                <div class="col-md-5">
+                    @if (currentStatus.HasValue || currentSortBy != "created" || !currentDescending)
+                    {
+                        <label class="form-label">&nbsp;</label>
+                        <a href="@Url.Action("Index")" class="btn btn-outline-danger w-100">
+                            <i class="bi bi-x-circle"></i> Clear Filters
+                        </a>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const sortBySelect = document.getElementById('sortBySelect');
+                const orderSelect = document.getElementById('orderSelect');
+
+                function updateUrl() {
+                    const params = new URLSearchParams(window.location.search);
+                    params.set('sortBy', sortBySelect.value);
+                    params.set('descending', orderSelect.value);
+                    window.location.search = params.toString();
+                }
+
+                sortBySelect.addEventListener('change', updateUrl);
+                orderSelect.addEventListener('change', updateUrl);
+            });
+
+            function confirmDelete(sessionId, event) {
+                event.preventDefault();
+                if (confirm('Are you sure you want to delete this draft session? This action cannot be undone.')) {
+                    document.getElementById('deleteForm_' + sessionId).submit();
+                }
+            }
+        </script>
+
+        <div class="card-body">
+            @if (Model != null && Model.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Session ID</th>
+                                <th>Configuration</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Started</th>
+                                <th>Completed</th>
+                                <th>Duration</th>
+                                <th>Tables</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var session in Model)
+                            {
+                                var duration = session.CompletedAt.HasValue && session.StartedAt.HasValue
+                                ? session.CompletedAt.Value - session.StartedAt.Value
+                                : (TimeSpan?)null;
+
+                                <tr>
+                                    <td>
+                                        <code class="small">@session.SessionGuid.ToString().Substring(0, 8)</code>
+                                    </td>
+
+                                    <td>
+                                        @if (session.Configuration != null)
+                                        {
+                                            <span class="badge bg-secondary">@session.Configuration.Name</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @switch (session.Status)
+                                        {
+                                            case MigrationStatus.Draft:
+                                                <span class="badge bg-secondary">
+                                                    <i class="bi bi-pencil"></i> Draft
+                                                </span>
+                                                break;
+                                            case MigrationStatus.Ready:
+                                                <span class="badge bg-info">
+                                                    <i class="bi bi-check-circle"></i> Ready
+                                                </span>
+                                                break;
+                                            case MigrationStatus.Running:
+                                                <span class="badge bg-primary">
+                                                    <i class="bi bi-arrow-repeat"></i> Running
+                                                </span>
+                                                break;
+                                            case MigrationStatus.Completed:
+                                                <span class="badge bg-success">
+                                                    <i class="bi bi-check-circle-fill"></i> Completed
+                                                </span>
+                                                break;
+                                            case MigrationStatus.Failed:
+                                                <span class="badge bg-danger">
+                                                    <i class="bi bi-x-circle-fill"></i> Failed
+                                                </span>
+                                                break;
+                                            case MigrationStatus.Cancelled:
+                                                <span class="badge bg-warning text-dark">
+                                                    <i class="bi bi-dash-circle"></i> Cancelled
+                                                </span>
+                                                break;
+                                        }
+                                    </td>
+                                    <td>
+                                        <small>@session.CreatedAt.ToString("yyyy-MM-dd HH:mm")</small>
+                                    </td>
+                                    <td>
+                                        @if (session.StartedAt.HasValue)
+                                        {
+                                            <small>@session.StartedAt.Value.ToString("yyyy-MM-dd HH:mm")</small>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (session.CompletedAt.HasValue)
+                                        {
+                                            <small>@session.CompletedAt.Value.ToString("yyyy-MM-dd HH:mm")</small>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (duration.HasValue)
+                                        {
+                                            <small class="text-muted">@FormatDuration(duration.Value)</small>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary">@session.SelectedTables.Count</span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            @if (session.Status == MigrationStatus.Running)
+                                            {
+                                                <a asp-controller="Migration" asp-action="Progress" asp-route-sessionId="@session.SessionGuid"
+                                                   class="btn btn-primary" title="View Progress">
+                                                    <i class="bi bi-graph-up"></i>
+                                                </a>
+                                            }
+                                            else if (session.Status == MigrationStatus.Completed || session.Status == MigrationStatus.Failed)
+                                            {
+                                                <a asp-controller="Migration" asp-action="Results" asp-route-sessionId="@session.SessionGuid"
+                                                   class="btn btn-success" title="View Results">
+                                                    <i class="bi bi-file-text"></i>
+                                                </a>
+                                            }
+                                            else if (session.Status == MigrationStatus.Draft)
+                                            {
+                                                <form id="deleteForm_@session.SessionGuid" method="post"
+                                                      asp-controller="Session" asp-action="Delete"
+                                                      asp-route-sessionId="@session.SessionGuid" style="display:inline;">
+                                                    <button type="button" class="btn btn-outline-danger"
+                                                            onclick="confirmDelete('@session.SessionGuid', event)"
+                                                            title="Delete Draft">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </form>
+                                            }
+                                            else if (session.Status == MigrationStatus.Ready)
+                                            {
+                                                <a asp-controller="Migration" asp-action="Edit" asp-route-sessionId="@session.SessionGuid"
+                                                   class="btn btn-outline-primary" title="Edit">
+                                                    <i class="bi bi-pencil"></i>
+                                                </a>
+                                            }
+                                            <a asp-controller="Migration" asp-action="Details" asp-route-sessionId="@session.SessionGuid"
+                                               class="btn btn-outline-secondary" title="Details">
+                                                <i class="bi bi-info-circle"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    @if (currentStatus.HasValue)
+                    {
+                        <span>No <strong>@currentStatus.Value</strong> sessions found.</span>
+                    }
+                    else
+                    {
+                        <span>No migration sessions found. <a asp-controller="Migration" asp-action="Create">Create your first session</a>.</span>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@functions {
+    string GetStatusButtonClass(MigrationStatus status)
+    {
+        return status switch
+        {
+            MigrationStatus.Draft => "btn-secondary",
+            MigrationStatus.Ready => "btn-info",
+            MigrationStatus.Running => "btn-primary",
+            MigrationStatus.Completed => "btn-success",
+            MigrationStatus.Failed => "btn-danger",
+            MigrationStatus.Cancelled => "btn-warning",
+            _ => "btn-secondary"
+        };
+    }
+
+    string FormatDuration(TimeSpan duration)
+    {
+        if (duration.TotalMinutes < 1)
+            return $"{(int)duration.TotalSeconds}s";
+        if (duration.TotalHours < 1)
+            return $"{(int)duration.TotalMinutes}m {duration.Seconds}s";
+        return $"{(int)duration.TotalHours}h {duration.Minutes}m";
+    }
+}
