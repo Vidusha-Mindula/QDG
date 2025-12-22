@@ -1,0 +1,76 @@
+name: Deploy to IIS
+
+on:
+  push:
+    branches: [ main, master ]  # Trigger on push to main/master
+  pull_request:
+    branches: [ main, master ]  # Optional: build on PRs
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  DOTNET_VERSION: '8.0.x'  # Change to your .NET version (6.0.x, 7.0.x, 8.0.x)
+  PUBLISH_PATH: './publish'
+  
+jobs:
+  build:
+    name: Build Application
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+    
+    - name: Run tests
+      run: dotnet test --configuration Release --no-build --verbosity normal
+      continue-on-error: false  # Set to true if you want to deploy even if tests fail
+    
+    - name: Publish
+      run: dotnet publish --configuration Release --no-build --output ${{ env.PUBLISH_PATH }}
+    
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: webapp
+        path: ${{ env.PUBLISH_PATH }}
+
+  deploy:
+    name: Deploy to IIS
+    needs: build
+    runs-on: windows-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    
+    steps:
+    - name: Download artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: webapp
+        path: ${{ env.PUBLISH_PATH }}
+    
+    - name: Deploy to IIS via WebDeploy
+      shell: powershell
+      run: |
+        # Install Web Deploy if not present
+        if (-not (Get-Command msdeploy -ErrorAction SilentlyContinue)) {
+          Write-Host "Web Deploy not found, downloading..."
+          choco install webdeploy -y
+        }
+        
+        # Deploy using Web Deploy
+        & 'C:\Program Files\IIS\Microsoft Web Deploy V3\msdeploy.exe' `
+          -verb:sync `
+          -source:contentPath="${{ env.PUBLISH_PATH }}" `
+          -dest:contentPath="${{ secrets.IIS_WEBSITE_NAME }}",computerName="${{ secrets.IIS_SERVER_URL }}/msdeploy.axd?site=${{ secrets.IIS_WEBSITE_NAME }}",username="${{ secrets.IIS_SERVER_USERNAME }}",password="${{ secrets.IIS_SERVER_PASSWORD }}",authtype="Basic" `
+          -allowUntrusted `
+          -enableRule:AppOffline `
+          -skip:Directory=App_Data
