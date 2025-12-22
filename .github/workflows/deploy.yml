@@ -1,4 +1,4 @@
-name: Build and Deploy MTC to IIS
+name: Build and Deploy QDG to IIS
 
 on:
   push:
@@ -12,7 +12,7 @@ env:
   
 jobs:
   build-and-deploy:
-    name: Build and Deploy MTC
+    name: Build and Deploy QDG
     runs-on: windows-latest
     
     steps:
