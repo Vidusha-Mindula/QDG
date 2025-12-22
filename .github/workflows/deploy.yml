@@ -1,76 +1,175 @@
-name: Deploy to IIS
+name: Build and Deploy MTC to IIS
 
 on:
   push:
-    branches: [ main, master ]  # Trigger on push to main/master
-  pull_request:
-    branches: [ main, master ]  # Optional: build on PRs
-  workflow_dispatch:  # Allow manual trigger
+    branches: [ main ]
+  workflow_dispatch:
 
 env:
-  DOTNET_VERSION: '8.0.x'  # Change to your .NET version (6.0.x, 7.0.x, 8.0.x)
+  DOTNET_VERSION: '8.0.x'
   PUBLISH_PATH: './publish'
+  PROJECT_PATH: '.'
   
 jobs:
-  build:
-    name: Build Application
+  build-and-deploy:
+    name: Build and Deploy MTC
     runs-on: windows-latest
     
     steps:
-    - name: Checkout code
+    - name: 📥 Checkout code
       uses: actions/checkout@v4
     
-    - name: Setup .NET
+    - name: 🔧 Setup .NET 8.0
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
     
-    - name: Restore dependencies
-      run: dotnet restore
+    - name: 📦 Restore dependencies
+      run: dotnet restore ${{ env.PROJECT_PATH }}
     
-    - name: Build
-      run: dotnet build --configuration Release --no-restore
+    - name: 🏗️ Build project
+      run: dotnet build ${{ env.PROJECT_PATH }} --configuration Release --no-restore
     
-    - name: Run tests
-      run: dotnet test --configuration Release --no-build --verbosity normal
-      continue-on-error: false  # Set to true if you want to deploy even if tests fail
+    - name: 🧪 Run tests
+      run: dotnet test ${{ env.PROJECT_PATH }} --configuration Release --no-build --verbosity normal
+      continue-on-error: false
     
-    - name: Publish
-      run: dotnet publish --configuration Release --no-build --output ${{ env.PUBLISH_PATH }}
+    - name: 📤 Publish application
+      run: dotnet publish ${{ env.PROJECT_PATH }} --configuration Release --no-build --output ${{ env.PUBLISH_PATH }}
     
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: webapp
-        path: ${{ env.PUBLISH_PATH }}
-
-  deploy:
-    name: Deploy to IIS
-    needs: build
-    runs-on: windows-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-    
-    steps:
-    - name: Download artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: webapp
-        path: ${{ env.PUBLISH_PATH }}
-    
-    - name: Deploy to IIS via WebDeploy
+    - name: 📋 Verify published files
       shell: powershell
       run: |
-        # Install Web Deploy if not present
-        if (-not (Get-Command msdeploy -ErrorAction SilentlyContinue)) {
-          Write-Host "Web Deploy not found, downloading..."
-          choco install webdeploy -y
+        Write-Host "Published files:" -ForegroundColor Cyan
+        $files = Get-ChildItem -Path ${{ env.PUBLISH_PATH }} -Recurse -File
+        Write-Host "Total files: $($files.Count)"
+        $totalSize = ($files | Measure-Object -Property Length -Sum).Sum
+        Write-Host "Total size: $([math]::Round($totalSize/1MB, 2)) MB" -ForegroundColor Green
+    
+    - name: 🚀 Deploy to IIS using Web Deploy
+      shell: powershell
+      run: |
+        Write-Host "==================================================" -ForegroundColor Cyan
+        Write-Host "Starting MSDeploy to IIS Server" -ForegroundColor Cyan
+        Write-Host "==================================================" -ForegroundColor Cyan
+        
+        # Configuration
+        $publishPath = Resolve-Path "${{ env.PUBLISH_PATH }}"
+        $siteName = "${{ secrets.IIS_WEBSITE_NAME }}"
+        $serverIp = "${{ secrets.IIS_SERVER_IP }}"
+        $username = "${{ secrets.IIS_SERVER_USERNAME }}"
+        $password = "${{ secrets.IIS_SERVER_PASSWORD }}"
+        
+        Write-Host ""
+        Write-Host "Configuration:" -ForegroundColor Yellow
+        Write-Host "  Source Path: $publishPath" -ForegroundColor Gray
+        Write-Host "  Target Site: $siteName" -ForegroundColor Gray
+        Write-Host "  Server: $serverIp" -ForegroundColor Gray
+        Write-Host "  Username: $username" -ForegroundColor Gray
+        Write-Host ""
+        
+        # Find MSDeploy
+        $msdeployPath = "C:\Program Files\IIS\Microsoft Web Deploy V3\msdeploy.exe"
+        if (-not (Test-Path $msdeployPath)) {
+          $msdeployPath = "C:\Program Files (x86)\IIS\Microsoft Web Deploy V3\msdeploy.exe"
         }
         
-        # Deploy using Web Deploy
-        & 'C:\Program Files\IIS\Microsoft Web Deploy V3\msdeploy.exe' `
-          -verb:sync `
-          -source:contentPath="${{ env.PUBLISH_PATH }}" `
-          -dest:contentPath="${{ secrets.IIS_WEBSITE_NAME }}",computerName="${{ secrets.IIS_SERVER_URL }}/msdeploy.axd?site=${{ secrets.IIS_WEBSITE_NAME }}",username="${{ secrets.IIS_SERVER_USERNAME }}",password="${{ secrets.IIS_SERVER_PASSWORD }}",authtype="Basic" `
-          -allowUntrusted `
-          -enableRule:AppOffline `
-          -skip:Directory=App_Data
+        if (-not (Test-Path $msdeployPath)) {
+          Write-Error "MSDeploy.exe not found!"
+          exit 1
+        }
+        
+        Write-Host "Using: $msdeployPath" -ForegroundColor Gray
+        Write-Host ""
+        
+        # Build the deployment command
+        $source = "contentPath=$publishPath"
+        $destContentPath = $siteName
+        $computerName = "https://${serverIp}:8172/msdeploy.axd?site=$siteName"
+        
+        Write-Host "Executing deployment..." -ForegroundColor Cyan
+        Write-Host ""
+        
+        # Execute with proper escaping
+        $process = Start-Process -FilePath $msdeployPath -ArgumentList @(
+          "-verb:sync",
+          "-source:$source",
+          "-dest:contentPath=$destContentPath,computerName=$computerName,username=$username,password=$password,authtype=Basic",
+          "-allowUntrusted",
+          "-enableRule:AppOffline",
+          "-retryAttempts:3",
+          "-retryInterval:5000",
+          "-verbose"
+        ) -NoNewWindow -Wait -PassThru
+        
+        Write-Host ""
+        
+        if ($process.ExitCode -eq 0) {
+          Write-Host "==================================================" -ForegroundColor Green
+          Write-Host "✅ Deployment completed successfully!" -ForegroundColor Green
+          Write-Host "==================================================" -ForegroundColor Green
+        } else {
+          Write-Host "==================================================" -ForegroundColor Red
+          Write-Host "❌ Deployment failed!" -ForegroundColor Red
+          Write-Host "==================================================" -ForegroundColor Red
+          Write-Host ""
+          Write-Host "Exit Code: $($process.ExitCode)" -ForegroundColor Red
+          Write-Host ""
+          Write-Host "Common issues:" -ForegroundColor Yellow
+          Write-Host "  1. Site name mismatch - Current: '$siteName'" -ForegroundColor Yellow
+          Write-Host "     Check: Get-Website | Select Name" -ForegroundColor Gray
+          Write-Host ""
+          Write-Host "  2. Server not reachable - Current: '$serverIp'" -ForegroundColor Yellow
+          Write-Host "     Check: Test-NetConnection -ComputerName $serverIp -Port 8172" -ForegroundColor Gray
+          Write-Host ""
+          Write-Host "  3. WMSVC not running" -ForegroundColor Yellow
+          Write-Host "     Check: Get-Service WMSVC" -ForegroundColor Gray
+          Write-Host ""
+          Write-Host "  4. Invalid credentials - Current user: '$username'" -ForegroundColor Yellow
+          Write-Host ""
+          
+          exit $process.ExitCode
+        }
+    
+    - name: ✅ Verify deployment
+      shell: powershell
+      run: |
+        Write-Host ""
+        Write-Host "Verifying deployment..." -ForegroundColor Cyan
+        Start-Sleep -Seconds 15
+        
+        $url = "${{ secrets.IIS_SERVER_URL }}"
+        $maxAttempts = 5
+        
+        for ($i = 1; $i -le $maxAttempts; $i++) {
+          try {
+            Write-Host "[$i/$maxAttempts] Testing: $url" -ForegroundColor Gray
+            $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop
+            Write-Host "✅ Success! Status: $($response.StatusCode)" -ForegroundColor Green
+            exit 0
+          } catch {
+            if ($i -lt $maxAttempts) {
+              Write-Host "⚠️ Failed, retrying in 10s..." -ForegroundColor Yellow
+              Start-Sleep -Seconds 10
+            } else {
+              Write-Host "⚠️ Could not verify - check manually at $url" -ForegroundColor Yellow
+            }
+          }
+        }
+    
+    - name: 🎉 Success Summary
+      if: success()
+      run: |
+        Write-Host ""
+        Write-Host "╔════════════════════════════════════════════════╗" -ForegroundColor Cyan
+        Write-Host "║                                                ║" -ForegroundColor Cyan
+        Write-Host "║        🎉 DEPLOYMENT SUCCESSFUL! 🎉           ║" -ForegroundColor Green
+        Write-Host "║                                                ║" -ForegroundColor Cyan
+        Write-Host "╚════════════════════════════════════════════════╝" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "  Project: MTC Backend (.NET 8.0)" -ForegroundColor White
+        Write-Host "  Site: ${{ secrets.IIS_WEBSITE_NAME }}" -ForegroundColor White
+        Write-Host "  URL: ${{ secrets.IIS_SERVER_URL }}" -ForegroundColor White
+        Write-Host "  Time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor White
+        Write-Host "  Commit: ${{ github.sha }}" -ForegroundColor Gray
+        Write-Host ""
