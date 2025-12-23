@@ -1,4 +1,5 @@
 name: Build and Deploy to IIS (Self-Hosted)
+
 on:
   push:
     branches:
@@ -9,6 +10,7 @@ env:
   PROJECT_PATH: 'QDG.Migration.Web/QDG.Migration.Web.csproj'
   TARGET_PATH: 'D:\QDGPUBLISH'
   IIS_SITE_NAME: 'QDGMigration'
+  IIS_POOL_NAME: 'QDGMigrationPool'  # ✅ Added this
 
 jobs:
   build-and-deploy:
@@ -17,10 +19,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
-      # Remove this if .NET SDK is installed on the server
-      # - name: Setup .NET SDK
-      #   uses: actions/setup-dotnet@v4
       
       - name: Restore dependencies
         run: dotnet restore ${{ env.PROJECT_PATH }}
@@ -38,25 +36,59 @@ jobs:
         shell: powershell
         run: |
           Import-Module WebAdministration
+          
           try {
+            # Stop IIS site and app pool
             Write-Host "Stopping IIS site '${{ env.IIS_SITE_NAME }}'..."
-            Stop-WebAppPool -Name "${{ env.IIS_SITE_NAME }}" -ErrorAction Stop
+            Stop-WebAppPool -Name "${{ env.IIS_POOL_NAME }}" -ErrorAction Stop  # ✅ Use pool name
             Stop-Website -Name "${{ env.IIS_SITE_NAME }}" -ErrorAction Stop
             
-            Write-Host "Waiting for 5 seconds..."
+            # Wait for locks to release
+            Write-Host "Waiting for file locks to release..."
             Start-Sleep -Seconds 5
             
-            Write-Host "Deploying files..."
-            robocopy ./publish ${{ env.TARGET_PATH }} /E /PURGE /NFL /NDL /NJH /NJS /nc /ns /np /W:3
+            # Deploy files using robocopy
+            Write-Host "Deploying files to ${{ env.TARGET_PATH }}..."
+            robocopy ./publish ${{ env.TARGET_PATH }} /E /PURGE /NFL /NDL /NJH /NJS /nc /ns /np /W:3 /R:3
             
-            if ($LastExitCode -ge 8) {
-              throw "Robocopy failed with exit code $LastExitCode"
+            # Robocopy exit codes: 0-7 are success, 8+ are errors
+            if ($LASTEXITCODE -ge 8) {
+              throw "Robocopy failed with exit code $LASTEXITCODE"
             }
             
-            Write-Host "Deployment successful (Exit code: $LastExitCode)."
+            Write-Host "Files deployed successfully (Exit code: $LASTEXITCODE)"
+          }
+          catch {
+            Write-Error "Deployment failed: $_"
+            throw
           }
           finally {
-            Write-Host "Starting IIS site..."
-            Start-WebAppPool -Name "${{ env.IIS_SITE_NAME }}" -ErrorAction SilentlyContinue
+            # Always try to start the site back up
+            Write-Host "Starting IIS site '${{ env.IIS_SITE_NAME }}'..."
+            Start-WebAppPool -Name "${{ env.IIS_POOL_NAME }}" -ErrorAction SilentlyContinue  # ✅ Use pool name
             Start-Website -Name "${{ env.IIS_SITE_NAME }}" -ErrorAction SilentlyContinue
+            
+            # Verify site is running
+            Start-Sleep -Seconds 2
+            $site = Get-Website -Name "${{ env.IIS_SITE_NAME }}"
+            if ($site.State -eq "Started") {
+              Write-Host "✓ Site is running"
+            } else {
+              Write-Warning "⚠ Site may not be running properly. State: $($site.State)"
+            }
+          }
+      
+      - name: Verify Deployment
+        shell: powershell
+        run: |
+          Write-Host "Verifying deployment..."
+          Start-Sleep -Seconds 3
+          
+          try {
+            $response = Invoke-WebRequest -Uri "http://localhost:8001" -UseBasicParsing -TimeoutSec 10
+            Write-Host "✓ Deployment successful! Site responded with status: $($response.StatusCode)"
+          }
+          catch {
+            Write-Warning "⚠ Could not verify site: $($_.Exception.Message)"
+            Write-Host "Please check http://localhost:8001 manually"
           }
