@@ -1,60 +1,62 @@
-name: Deploy to IIS
-
+name: Build and Deploy to IIS (Self-Hosted)
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   workflow_dispatch:
 
+env:
+  PROJECT_PATH: 'QDG.Migration.Web/QDG.Migration.Web.csproj'
+  TARGET_PATH: 'D:\QDGPUBLISH'
+  IIS_SITE_NAME: 'QDGMigration'
+
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: self-hosted
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-    
-    # REMOVE THIS STEP - .NET is already installed on the server
-    # - name: Setup .NET
-    #   uses: actions/setup-dotnet@v3
-    #   with:
-    #     dotnet-version: '8.0.x'
-    
-    - name: Restore dependencies
-      run: dotnet restore QDG.Migration.Web/QDG.Migration.Web.csproj
-    
-    - name: Build
-      run: dotnet build QDG.Migration.Web/QDG.Migration.Web.csproj --configuration Release --no-restore
-    
-    - name: Publish
-      run: dotnet publish QDG.Migration.Web/QDG.Migration.Web.csproj --configuration Release --output D:\QDGPUBLISH_TEMP --no-build
-    
-    - name: Stop IIS Website
-      run: |
-        Import-Module WebAdministration
-        Stop-WebSite -Name "QDGMigration"
-      shell: powershell
-    
-    - name: Deploy to IIS
-      run: |
-        Start-Sleep -Seconds 5
-        Remove-Item -Path "D:\QDGPUBLISH\*" -Recurse -Force -ErrorAction SilentlyContinue
-        Copy-Item -Path "D:\QDGPUBLISH_TEMP\*" -Destination "D:\QDGPUBLISH\" -Recurse -Force
-        Remove-Item -Path "D:\QDGPUBLISH_TEMP" -Recurse -Force -ErrorAction SilentlyContinue
-      shell: powershell
-    
-    - name: Start IIS Website
-      run: |
-        Import-Module WebAdministration
-        Start-WebSite -Name "QDGMigration"
-      shell: powershell
-    
-    - name: Verify Deployment
-      run: |
-        Start-Sleep -Seconds 3
-        try {
-          $response = Invoke-WebRequest -Uri "http://localhost:8001" -UseBasicParsing -TimeoutSec 10
-          Write-Host "Deployment successful! Status: $($response.StatusCode)"
-        } catch {
-          Write-Host "Warning: Could not verify deployment - $($_.Exception.Message)"
-        }
-      shell: powershell
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      # Remove this if .NET SDK is installed on the server
+      # - name: Setup .NET SDK
+      #   uses: actions/setup-dotnet@v4
+      
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.PROJECT_PATH }}
+        shell: cmd
+      
+      - name: Build project
+        run: dotnet build ${{ env.PROJECT_PATH }} --configuration Release --no-restore
+        shell: cmd
+      
+      - name: Publish project
+        run: dotnet publish ${{ env.PROJECT_PATH }} --configuration Release --no-build --output ./publish
+        shell: cmd
+      
+      - name: Deploy to IIS
+        shell: powershell
+        run: |
+          Import-Module WebAdministration
+          try {
+            Write-Host "Stopping IIS site '${{ env.IIS_SITE_NAME }}'..."
+            Stop-WebAppPool -Name "${{ env.IIS_SITE_NAME }}" -ErrorAction Stop
+            Stop-Website -Name "${{ env.IIS_SITE_NAME }}" -ErrorAction Stop
+            
+            Write-Host "Waiting for 5 seconds..."
+            Start-Sleep -Seconds 5
+            
+            Write-Host "Deploying files..."
+            robocopy ./publish ${{ env.TARGET_PATH }} /E /PURGE /NFL /NDL /NJH /NJS /nc /ns /np /W:3
+            
+            if ($LastExitCode -ge 8) {
+              throw "Robocopy failed with exit code $LastExitCode"
+            }
+            
+            Write-Host "Deployment successful (Exit code: $LastExitCode)."
+          }
+          finally {
+            Write-Host "Starting IIS site..."
+            Start-WebAppPool -Name "${{ env.IIS_SITE_NAME }}" -ErrorAction SilentlyContinue
+            Start-Website -Name "${{ env.IIS_SITE_NAME }}" -ErrorAction SilentlyContinue
+          }
