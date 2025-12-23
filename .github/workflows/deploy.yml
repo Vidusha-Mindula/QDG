@@ -9,8 +9,6 @@ on:
 env:
   PROJECT_PATH: 'QDG.Migration.Web/QDG.Migration.Web.csproj'
   TARGET_PATH: 'D:\QDGPUBLISH'
-  IIS_SITE_NAME: 'QDGMigration'
-  IIS_POOL_NAME: 'QDGMigrationPool'  # ✅ Added this
 
 jobs:
   build-and-deploy:
@@ -35,47 +33,33 @@ jobs:
       - name: Deploy to IIS
         shell: powershell
         run: |
-          Import-Module WebAdministration
-          
           try {
-            # Stop IIS site and app pool
-            Write-Host "Stopping IIS site '${{ env.IIS_SITE_NAME }}'..."
-            Stop-WebAppPool -Name "${{ env.IIS_POOL_NAME }}" -ErrorAction Stop  # ✅ Use pool name
-            Stop-Website -Name "${{ env.IIS_SITE_NAME }}" -ErrorAction Stop
+            Write-Host "Taking site offline..."
+            $offlineFile = "${{ env.TARGET_PATH }}\app_offline.htm"
+            "<html><body><h1>Site is updating... Please wait.</h1></body></html>" | Out-File -FilePath $offlineFile -Encoding UTF8
             
-            # Wait for locks to release
             Write-Host "Waiting for file locks to release..."
             Start-Sleep -Seconds 5
             
-            # Deploy files using robocopy
-            Write-Host "Deploying files to ${{ env.TARGET_PATH }}..."
-            robocopy ./publish ${{ env.TARGET_PATH }} /E /PURGE /NFL /NDL /NJH /NJS /nc /ns /np /W:3 /R:3
+            Write-Host "Deploying files..."
+            robocopy ./publish ${{ env.TARGET_PATH }} /E /XF app_offline.htm /NFL /NDL /NJH /NJS /nc /ns /np /W:3 /R:3
             
-            # Robocopy exit codes: 0-7 are success, 8+ are errors
             if ($LASTEXITCODE -ge 8) {
               throw "Robocopy failed with exit code $LASTEXITCODE"
             }
             
-            Write-Host "Files deployed successfully (Exit code: $LASTEXITCODE)"
+            Write-Host "Deployment successful (Exit code: $LASTEXITCODE)"
+            
+            Write-Host "Bringing site back online..."
+            Start-Sleep -Seconds 2
+            Remove-Item -Path $offlineFile -Force
+            
+            Write-Host "Site is back online!"
           }
           catch {
             Write-Error "Deployment failed: $_"
+            Remove-Item -Path "${{ env.TARGET_PATH }}\app_offline.htm" -Force -ErrorAction SilentlyContinue
             throw
-          }
-          finally {
-            # Always try to start the site back up
-            Write-Host "Starting IIS site '${{ env.IIS_SITE_NAME }}'..."
-            Start-WebAppPool -Name "${{ env.IIS_POOL_NAME }}" -ErrorAction SilentlyContinue  # ✅ Use pool name
-            Start-Website -Name "${{ env.IIS_SITE_NAME }}" -ErrorAction SilentlyContinue
-            
-            # Verify site is running
-            Start-Sleep -Seconds 2
-            $site = Get-Website -Name "${{ env.IIS_SITE_NAME }}"
-            if ($site.State -eq "Started") {
-              Write-Host "✓ Site is running"
-            } else {
-              Write-Warning "⚠ Site may not be running properly. State: $($site.State)"
-            }
           }
       
       - name: Verify Deployment
@@ -86,9 +70,8 @@ jobs:
           
           try {
             $response = Invoke-WebRequest -Uri "http://localhost:8001" -UseBasicParsing -TimeoutSec 10
-            Write-Host "✓ Deployment successful! Site responded with status: $($response.StatusCode)"
+            Write-Host "SUCCESS: Site responded with status: $($response.StatusCode)"
           }
           catch {
-            Write-Warning "⚠ Could not verify site: $($_.Exception.Message)"
-            Write-Host "Please check http://localhost:8001 manually"
+            Write-Warning "Could not verify site: $($_.Exception.Message)"
           }
