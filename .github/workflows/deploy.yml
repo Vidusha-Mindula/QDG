@@ -1,5 +1,4 @@
 name: Build and Deploy to IIS (Self-Hosted)
-
 on:
   push:
     branches:
