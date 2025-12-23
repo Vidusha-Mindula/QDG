@@ -8,12 +8,14 @@ on:
 env:
   DOTNET_VERSION: '8.0.x'
   PUBLISH_PATH: './publish'
-  PROJECT_PATH: '.'
+  PROJECT_PATH: 'QDG.Migration.Web/QDG.Migration.Web.csproj'
+  TARGET_PATH: 'D:\QDGPUBLISH'
+  IIS_SITE_NAME: 'QDGMigration'
   
 jobs:
   build-and-deploy:
     name: Build and Deploy QDG
-    runs-on: windows-latest
+    runs-on: self-hosted  # Running on your local machine
     
     steps:
     - name: 📥 Checkout code
@@ -46,89 +48,142 @@ jobs:
         $totalSize = ($files | Measure-Object -Property Length -Sum).Sum
         Write-Host "Total size: $([math]::Round($totalSize/1MB, 2)) MB" -ForegroundColor Green
     
-    - name: 🚀 Deploy to IIS using Web Deploy
+    - name: 🚀 Deploy to Local IIS
       shell: powershell
       run: |
         Write-Host "==================================================" -ForegroundColor Cyan
-        Write-Host "Starting MSDeploy to IIS Server" -ForegroundColor Cyan
+        Write-Host "Starting Deployment to Local IIS" -ForegroundColor Cyan
         Write-Host "==================================================" -ForegroundColor Cyan
+        Write-Host ""
         
         # Configuration
         $publishPath = Resolve-Path "${{ env.PUBLISH_PATH }}"
-        $siteName = "${{ secrets.IIS_WEBSITE_NAME }}"
-        $serverIp = "${{ secrets.IIS_SERVER_IP }}"
-        $username = "${{ secrets.IIS_SERVER_USERNAME }}"
-        $password = "${{ secrets.IIS_SERVER_PASSWORD }}"
+        $targetPath = "${{ env.TARGET_PATH }}"
+        $siteName = "${{ env.IIS_SITE_NAME }}"
         
-        Write-Host ""
         Write-Host "Configuration:" -ForegroundColor Yellow
         Write-Host "  Source Path: $publishPath" -ForegroundColor Gray
-        Write-Host "  Target Site: $siteName" -ForegroundColor Gray
-        Write-Host "  Server: $serverIp" -ForegroundColor Gray
-        Write-Host "  Username: $username" -ForegroundColor Gray
+        Write-Host "  Target Path: $targetPath" -ForegroundColor Gray
+        Write-Host "  IIS Site: $siteName" -ForegroundColor Gray
         Write-Host ""
         
-        # Find MSDeploy
-        $msdeployPath = "C:\Program Files\IIS\Microsoft Web Deploy V3\msdeploy.exe"
-        if (-not (Test-Path $msdeployPath)) {
-          $msdeployPath = "C:\Program Files (x86)\IIS\Microsoft Web Deploy V3\msdeploy.exe"
-        }
+        # Import IIS module
+        Import-Module WebAdministration -ErrorAction Stop
         
-        if (-not (Test-Path $msdeployPath)) {
-          Write-Error "MSDeploy.exe not found!"
+        # Verify site exists
+        $site = Get-Website -Name $siteName -ErrorAction SilentlyContinue
+        if ($null -eq $site) {
+          Write-Host "❌ Error: IIS site '$siteName' not found!" -ForegroundColor Red
+          Write-Host ""
+          Write-Host "Available sites:" -ForegroundColor Yellow
+          Get-Website | Select-Object Name, State, PhysicalPath | Format-Table
           exit 1
         }
         
-        Write-Host "Using: $msdeployPath" -ForegroundColor Gray
+        Write-Host "✅ IIS site found: $siteName" -ForegroundColor Green
         Write-Host ""
         
-        # Build the deployment command
-        $source = "contentPath=$publishPath"
-        $destContentPath = $siteName
-        $computerName = "https://${serverIp}:8172/msdeploy.axd?site=$siteName"
+        # Get app pool name
+        $appPoolName = $site.applicationPool
+        Write-Host "App Pool: $appPoolName" -ForegroundColor Gray
         
-        Write-Host "Executing deployment..." -ForegroundColor Cyan
+        # Stop the app pool
+        Write-Host "Stopping app pool..." -ForegroundColor Yellow
+        try {
+          Stop-WebAppPool -Name $appPoolName -ErrorAction Stop
+          Write-Host "✅ App pool stopped" -ForegroundColor Green
+          Start-Sleep -Seconds 3
+        } catch {
+          Write-Host "⚠️ Warning: Could not stop app pool - $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+        
+        # Create target directory if it doesn't exist
+        if (-not (Test-Path $targetPath)) {
+          Write-Host "Creating target directory..." -ForegroundColor Yellow
+          New-Item -Path $targetPath -ItemType Directory -Force | Out-Null
+          Write-Host "✅ Target directory created" -ForegroundColor Green
+        }
+        
+        # Backup existing deployment (optional)
+        $backupPath = "$targetPath`_backup_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+        if (Test-Path "$targetPath\web.config") {
+          Write-Host "Creating backup..." -ForegroundColor Yellow
+          Copy-Item -Path $targetPath -Destination $backupPath -Recurse -Force
+          Write-Host "✅ Backup created at: $backupPath" -ForegroundColor Green
+        }
+        
+        Write-Host ""
+        Write-Host "Copying files..." -ForegroundColor Cyan
+        
+        # Copy files with retry logic
+        $maxRetries = 3
+        $retryCount = 0
+        $copySuccess = $false
+        
+        while (-not $copySuccess -and $retryCount -lt $maxRetries) {
+          try {
+            $retryCount++
+            
+            # Remove old files (except web.config and app_offline.htm)
+            Get-ChildItem -Path $targetPath -Recurse -Exclude "web.config","app_offline.htm" | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
+            
+            # Copy new files
+            Copy-Item -Path "$publishPath\*" -Destination $targetPath -Recurse -Force -ErrorAction Stop
+            
+            $copySuccess = $true
+            Write-Host "✅ Files copied successfully" -ForegroundColor Green
+          } catch {
+            Write-Host "⚠️ Copy attempt $retryCount failed: $($_.Exception.Message)" -ForegroundColor Yellow
+            if ($retryCount -lt $maxRetries) {
+              Write-Host "Retrying in 5 seconds..." -ForegroundColor Yellow
+              Start-Sleep -Seconds 5
+            } else {
+              Write-Host "❌ Failed to copy files after $maxRetries attempts" -ForegroundColor Red
+              
+              # Restore from backup if available
+              if (Test-Path $backupPath) {
+                Write-Host "Restoring from backup..." -ForegroundColor Yellow
+                Copy-Item -Path "$backupPath\*" -Destination $targetPath -Recurse -Force
+                Write-Host "✅ Restored from backup" -ForegroundColor Green
+              }
+              
+              # Start app pool before exiting
+              Start-WebAppPool -Name $appPoolName -ErrorAction SilentlyContinue
+              exit 1
+            }
+          }
+        }
+        
         Write-Host ""
         
-        # Execute with proper escaping
-        $process = Start-Process -FilePath $msdeployPath -ArgumentList @(
-          "-verb:sync",
-          "-source:$source",
-          "-dest:contentPath=$destContentPath,computerName=$computerName,username=$username,password=$password,authtype=Basic",
-          "-allowUntrusted",
-          "-enableRule:AppOffline",
-          "-retryAttempts:3",
-          "-retryInterval:5000",
-          "-verbose"
-        ) -NoNewWindow -Wait -PassThru
-        
-        Write-Host ""
-        
-        if ($process.ExitCode -eq 0) {
-          Write-Host "==================================================" -ForegroundColor Green
-          Write-Host "✅ Deployment completed successfully!" -ForegroundColor Green
-          Write-Host "==================================================" -ForegroundColor Green
-        } else {
-          Write-Host "==================================================" -ForegroundColor Red
-          Write-Host "❌ Deployment failed!" -ForegroundColor Red
-          Write-Host "==================================================" -ForegroundColor Red
-          Write-Host ""
-          Write-Host "Exit Code: $($process.ExitCode)" -ForegroundColor Red
-          Write-Host ""
-          Write-Host "Common issues:" -ForegroundColor Yellow
-          Write-Host "  1. Site name mismatch - Current: '$siteName'" -ForegroundColor Yellow
-          Write-Host "     Check: Get-Website | Select Name" -ForegroundColor Gray
-          Write-Host ""
-          Write-Host "  2. Server not reachable - Current: '$serverIp'" -ForegroundColor Yellow
-          Write-Host "     Check: Test-NetConnection -ComputerName $serverIp -Port 8172" -ForegroundColor Gray
-          Write-Host ""
-          Write-Host "  3. WMSVC not running" -ForegroundColor Yellow
-          Write-Host "     Check: Get-Service WMSVC" -ForegroundColor Gray
-          Write-Host ""
-          Write-Host "  4. Invalid credentials - Current user: '$username'" -ForegroundColor Yellow
-          Write-Host ""
+        # Start the app pool
+        Write-Host "Starting app pool..." -ForegroundColor Yellow
+        try {
+          Start-WebAppPool -Name $appPoolName -ErrorAction Stop
+          Start-Sleep -Seconds 2
           
-          exit $process.ExitCode
+          $appPoolState = (Get-WebAppPoolState -Name $appPoolName).Value
+          if ($appPoolState -eq "Started") {
+            Write-Host "✅ App pool started successfully" -ForegroundColor Green
+          } else {
+            Write-Host "⚠️ App pool state: $appPoolState" -ForegroundColor Yellow
+          }
+        } catch {
+          Write-Host "⚠️ Warning: Could not start app pool - $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+        
+        Write-Host ""
+        Write-Host "==================================================" -ForegroundColor Green
+        Write-Host "✅ Deployment completed successfully!" -ForegroundColor Green
+        Write-Host "==================================================" -ForegroundColor Green
+        
+        # Cleanup old backups (keep last 5)
+        Write-Host ""
+        Write-Host "Cleaning up old backups..." -ForegroundColor Gray
+        $backups = Get-ChildItem -Path (Split-Path $targetPath) -Directory -Filter "$([System.IO.Path]::GetFileName($targetPath))_backup_*" | Sort-Object CreationTime -Descending
+        if ($backups.Count -gt 5) {
+          $backups | Select-Object -Skip 5 | Remove-Item -Recurse -Force
+          Write-Host "✅ Old backups cleaned up" -ForegroundColor Green
         }
     
     - name: ✅ Verify deployment
@@ -136,9 +191,9 @@ jobs:
       run: |
         Write-Host ""
         Write-Host "Verifying deployment..." -ForegroundColor Cyan
-        Start-Sleep -Seconds 15
+        Start-Sleep -Seconds 10
         
-        $url = "${{ secrets.IIS_SERVER_URL }}"
+        $url = "http://localhost:8001"
         $maxAttempts = 5
         
         for ($i = 1; $i -le $maxAttempts; $i++) {
@@ -146,19 +201,23 @@ jobs:
             Write-Host "[$i/$maxAttempts] Testing: $url" -ForegroundColor Gray
             $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop
             Write-Host "✅ Success! Status: $($response.StatusCode)" -ForegroundColor Green
+            Write-Host "Response length: $($response.Content.Length) bytes" -ForegroundColor Gray
             exit 0
           } catch {
             if ($i -lt $maxAttempts) {
-              Write-Host "⚠️ Failed, retrying in 10s..." -ForegroundColor Yellow
+              Write-Host "⚠️ Attempt $i failed, retrying in 10s..." -ForegroundColor Yellow
               Start-Sleep -Seconds 10
             } else {
-              Write-Host "⚠️ Could not verify - check manually at $url" -ForegroundColor Yellow
+              Write-Host "⚠️ Could not verify deployment automatically" -ForegroundColor Yellow
+              Write-Host "Please check manually at $url" -ForegroundColor Yellow
+              Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Gray
             }
           }
         }
     
     - name: 🎉 Success Summary
       if: success()
+      shell: powershell
       run: |
         Write-Host ""
         Write-Host "╔════════════════════════════════════════════════╗" -ForegroundColor Cyan
@@ -167,9 +226,29 @@ jobs:
         Write-Host "║                                                ║" -ForegroundColor Cyan
         Write-Host "╚════════════════════════════════════════════════╝" -ForegroundColor Cyan
         Write-Host ""
-        Write-Host "  Project: MTC Backend (.NET 8.0)" -ForegroundColor White
-        Write-Host "  Site: ${{ secrets.IIS_WEBSITE_NAME }}" -ForegroundColor White
-        Write-Host "  URL: ${{ secrets.IIS_SERVER_URL }}" -ForegroundColor White
+        Write-Host "  Project: QDG Migration (.NET 8.0)" -ForegroundColor White
+        Write-Host "  Site: ${{ env.IIS_SITE_NAME }}" -ForegroundColor White
+        Write-Host "  Path: ${{ env.TARGET_PATH }}" -ForegroundColor White
+        Write-Host "  URL: http://localhost:8001" -ForegroundColor White
         Write-Host "  Time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor White
         Write-Host "  Commit: ${{ github.sha }}" -ForegroundColor Gray
+        Write-Host ""
+    
+    - name: ❌ Failure Summary
+      if: failure()
+      shell: powershell
+      run: |
+        Write-Host ""
+        Write-Host "╔════════════════════════════════════════════════╗" -ForegroundColor Red
+        Write-Host "║                                                ║" -ForegroundColor Red
+        Write-Host "║          ❌ DEPLOYMENT FAILED! ❌             ║" -ForegroundColor Red
+        Write-Host "║                                                ║" -ForegroundColor Red
+        Write-Host "╚════════════════════════════════════════════════╝" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "Troubleshooting steps:" -ForegroundColor Yellow
+        Write-Host "  1. Check IIS site exists: Get-Website -Name '${{ env.IIS_SITE_NAME }}'" -ForegroundColor Gray
+        Write-Host "  2. Check app pool status: Get-WebAppPoolState -Name (Get-Website -Name '${{ env.IIS_SITE_NAME }}').applicationPool" -ForegroundColor Gray
+        Write-Host "  3. Check target path permissions: Test-Path '${{ env.TARGET_PATH }}'" -ForegroundColor Gray
+        Write-Host "  4. Check IIS logs: C:\inetpub\logs\LogFiles\" -ForegroundColor Gray
+        Write-Host "  5. Check Event Viewer: Application and System logs" -ForegroundColor Gray
         Write-Host ""
