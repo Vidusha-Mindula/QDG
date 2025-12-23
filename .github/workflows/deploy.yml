@@ -249,6 +249,6 @@ jobs:
         Write-Host "  1. Check IIS site exists: Get-Website -Name '${{ env.IIS_SITE_NAME }}'" -ForegroundColor Gray
         Write-Host "  2. Check app pool status: Get-WebAppPoolState -Name (Get-Website -Name '${{ env.IIS_SITE_NAME }}').applicationPool" -ForegroundColor Gray
         Write-Host "  3. Check target path permissions: Test-Path '${{ env.TARGET_PATH }}'" -ForegroundColor Gray
-        Write-Host "  4. Check IIS logs: C:\inetpub\logs\LogFiles\" -ForegroundColor Gray
+        Write-Host "  4. Check IIS logs: C:\inetpub\logs\LogFiles" -ForegroundColor Gray
         Write-Host "  5. Check Event Viewer: Application and System logs" -ForegroundColor Gray
         Write-Host ""
