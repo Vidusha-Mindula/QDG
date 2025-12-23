@@ -44,6 +44,7 @@ jobs:
             Write-Host "Deploying files..."
             robocopy ./publish ${{ env.TARGET_PATH }} /E /XF app_offline.htm /NFL /NDL /NJH /NJS /nc /ns /np /W:3 /R:3
             
+            # Robocopy exit codes: 0-7 are success, 8+ are failures
             if ($LASTEXITCODE -ge 8) {
               throw "Robocopy failed with exit code $LASTEXITCODE"
             }
@@ -52,14 +53,17 @@ jobs:
             
             Write-Host "Bringing site back online..."
             Start-Sleep -Seconds 2
-            Remove-Item -Path $offlineFile -Force
+            Remove-Item -Path $offlineFile -Force -ErrorAction Stop
             
             Write-Host "Site is back online!"
+            
+            # Explicitly exit with success
+            exit 0
           }
           catch {
             Write-Error "Deployment failed: $_"
             Remove-Item -Path "${{ env.TARGET_PATH }}\app_offline.htm" -Force -ErrorAction SilentlyContinue
-            throw
+            exit 1
           }
       
       - name: Verify Deployment
