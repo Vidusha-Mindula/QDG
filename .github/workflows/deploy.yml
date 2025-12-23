@@ -1,69 +1,66 @@
-name: Build and Deploy to IIS (Self-Hosted)
+name: Deploy to IIS
+
 on:
   push:
-    branches:
-      - main
-  workflow_dispatch:
-
-env:
-  PROJECT_PATH: 'QDG.Migration.Web/QDG.Migration.Web.csproj'
-  TARGET_PATH: 'D:\QDGPUBLISH'
-  IIS_SITE_NAME: 'QDGMigration'
+    branches: [ main ]  # Change to your branch name
+  workflow_dispatch:  # Allows manual trigger
 
 jobs:
-  build-and-deploy:
-    runs-on: [self-hosted, Windows, x64, qdg-aus, qdg-main]
+  deploy:
+    runs-on: self-hosted  # Uses your self-hosted runner
+    
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v4
-
-      - name: Restore dependencies
-        run: dotnet restore ${{ env.PROJECT_PATH }}
-
-      - name: Build project
-        run: dotnet build ${{ env.PROJECT_PATH }} --configuration Release --no-restore
-
-      - name: Publish project
-        run: dotnet publish ${{ env.PROJECT_PATH }} --configuration Release --no-build --output ./publish
-
-      - name: Deploy to IIS
-        shell: powershell
-        run: |
-          Import-Module WebAdministration
-          try {
-            # Stop the IIS Website and App Pool
-            Write-Host "Stopping IIS site '${{ env.IIS_SITE_NAME }}'..."
-            Stop-WebAppPool -Name "${{ env.IIS_SITE_NAME }}" -ErrorAction Stop
-            Stop-Website -Name "${{ env.IIS_SITE_NAME }}" -ErrorAction Stop
-            
-            Write-Host "Waiting for 5 seconds for services to stop..."
-            Start-Sleep -Seconds 5
-            
-            Write-Host "Copying files from './publish' to '${{ env.TARGET_PATH }}'..."
-            robocopy ./publish ${{ env.TARGET_PATH }} /E /PURGE /NFL /NDL /NJH /NJS /nc /ns /np /W:3
-            
-            if ($LastExitCode -ge 8) {
-              Write-Error "Robocopy failed with exit code $LastExitCode"
-              throw "Robocopy failed"
-            }
-            
-            Write-Host "Robocopy successful (Exit code: $LastExitCode)."
-            
-          }
-          finally {
-            Write-Host "Starting IIS site '${{ env.IIS_SITE_NAME }}'..."
-            Start-WebAppPool -Name "${{ env.IIS_SITE_NAME }}" -ErrorAction SilentlyContinue
-            Start-Website -Name "${{ env.IIS_SITE_NAME }}" -ErrorAction SilentlyContinue
-            Write-Host "Site restart attempted."
-          }
-          
-          if ($Error) {
-             Write-Error "Deployment failed. See errors above."
-             exit 1 # Explicitly fail the step
-          }
-          
-          Write-Host "Deployment complete."
-          exit 0
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '8.0.x'  # Change to your .NET version (6.0.x, 7.0.x, etc.)
+    
+    - name: Restore dependencies
+      run: dotnet restore QDG.Migration.Web/QDG.Migration.Web.csproj
+    
+    - name: Build
+      run: dotnet build QDG.Migration.Web/QDG.Migration.Web.csproj --configuration Release --no-restore
+    
+    - name: Publish
+      run: dotnet publish QDG.Migration.Web/QDG.Migration.Web.csproj --configuration Release --output D:\QDGPUBLISH_TEMP --no-build
+    
+    - name: Stop IIS Website
+      run: |
+        Import-Module WebAdministration
+        Stop-WebSite -Name "QDGMigration"
+      shell: powershell
+    
+    - name: Deploy to IIS
+      run: |
+        # Wait for IIS to release files
+        Start-Sleep -Seconds 5
+        
+        # Remove old files (except for data/config you want to keep)
+        Remove-Item -Path "D:\QDGPUBLISH\*" -Recurse -Force -Exclude "appsettings.Production.json","web.config"
+        
+        # Copy new files
+        Copy-Item -Path "D:\QDGPUBLISH_TEMP\*" -Destination "D:\QDGPUBLISH\" -Recurse -Force
+        
+        # Clean up temp folder
+        Remove-Item -Path "D:\QDGPUBLISH_TEMP" -Recurse -Force
+      shell: powershell
+    
+    - name: Start IIS Website
+      run: |
+        Import-Module WebAdministration
+        Start-WebSite -Name "QDGMigration"
+      shell: powershell
+    
+    - name: Verify Deployment
+      run: |
+        Start-Sleep -Seconds 3
+        $response = Invoke-WebRequest -Uri "http://localhost:8001" -UseBasicParsing
+        if ($response.StatusCode -eq 200) {
+          Write-Host "Deployment successful! Website is responding."
+        } else {
+          Write-Host "Warning: Website returned status code $($response.StatusCode)"
+        }
+      shell: powershell
