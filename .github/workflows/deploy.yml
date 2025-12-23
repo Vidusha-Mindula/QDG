@@ -2,7 +2,7 @@ name: Build and Deploy to IIS (Self-Hosted)
 on:
   push:
     branches:
-      - master
+      - main
   workflow_dispatch:
 
 env:
