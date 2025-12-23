@@ -239,16 +239,12 @@ jobs:
       shell: powershell
       run: |
         Write-Host ""
-        Write-Host "╔════════════════════════════════════════════════╗" -ForegroundColor Red
-        Write-Host "║                                                ║" -ForegroundColor Red
-        Write-Host "║          ❌ DEPLOYMENT FAILED! ❌             ║" -ForegroundColor Red
-        Write-Host "║                                                ║" -ForegroundColor Red
-        Write-Host "╚════════════════════════════════════════════════╝" -ForegroundColor Red
+        Write-Host "Deployment Failed!" -ForegroundColor Red
         Write-Host ""
         Write-Host "Troubleshooting steps:" -ForegroundColor Yellow
-        Write-Host "  1. Check IIS site exists: Get-Website -Name '${{ env.IIS_SITE_NAME }}'" -ForegroundColor Gray
-        Write-Host "  2. Check app pool status: Get-WebAppPoolState -Name (Get-Website -Name '${{ env.IIS_SITE_NAME }}').applicationPool" -ForegroundColor Gray
-        Write-Host "  3. Check target path permissions: Test-Path '${{ env.TARGET_PATH }}'" -ForegroundColor Gray
-        Write-Host "  4. Check IIS logs: C:\inetpub\logs\LogFiles" -ForegroundColor Gray
-        Write-Host "  5. Check Event Viewer: Application and System logs" -ForegroundColor Gray
+        Write-Host "  1. Check IIS site exists" -ForegroundColor Gray
+        Write-Host "  2. Check app pool status" -ForegroundColor Gray
+        Write-Host "  3. Check target path permissions" -ForegroundColor Gray
+        Write-Host "  4. Check IIS logs" -ForegroundColor Gray
+        Write-Host "  5. Check Event Viewer logs" -ForegroundColor Gray
         Write-Host ""
