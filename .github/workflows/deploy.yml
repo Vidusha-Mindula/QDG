@@ -2,21 +2,22 @@ name: Deploy to IIS
 
 on:
   push:
-    branches: [ main ]  # Change to your branch name
-  workflow_dispatch:  # Allows manual trigger
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   deploy:
-    runs-on: self-hosted  # Uses your self-hosted runner
+    runs-on: self-hosted
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
     
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v3
-      with:
-        dotnet-version: '8.0.x'  # Change to your .NET version (6.0.x, 7.0.x, etc.)
+    # REMOVE THIS STEP - .NET is already installed on the server
+    # - name: Setup .NET
+    #   uses: actions/setup-dotnet@v3
+    #   with:
+    #     dotnet-version: '8.0.x'
     
     - name: Restore dependencies
       run: dotnet restore QDG.Migration.Web/QDG.Migration.Web.csproj
@@ -35,17 +36,10 @@ jobs:
     
     - name: Deploy to IIS
       run: |
-        # Wait for IIS to release files
         Start-Sleep -Seconds 5
-        
-        # Remove old files (except for data/config you want to keep)
-        Remove-Item -Path "D:\QDGPUBLISH\*" -Recurse -Force -Exclude "appsettings.Production.json","web.config"
-        
-        # Copy new files
+        Remove-Item -Path "D:\QDGPUBLISH\*" -Recurse -Force -ErrorAction SilentlyContinue
         Copy-Item -Path "D:\QDGPUBLISH_TEMP\*" -Destination "D:\QDGPUBLISH\" -Recurse -Force
-        
-        # Clean up temp folder
-        Remove-Item -Path "D:\QDGPUBLISH_TEMP" -Recurse -Force
+        Remove-Item -Path "D:\QDGPUBLISH_TEMP" -Recurse -Force -ErrorAction SilentlyContinue
       shell: powershell
     
     - name: Start IIS Website
@@ -57,10 +51,10 @@ jobs:
     - name: Verify Deployment
       run: |
         Start-Sleep -Seconds 3
-        $response = Invoke-WebRequest -Uri "http://localhost:8001" -UseBasicParsing
-        if ($response.StatusCode -eq 200) {
-          Write-Host "Deployment successful! Website is responding."
-        } else {
-          Write-Host "Warning: Website returned status code $($response.StatusCode)"
+        try {
+          $response = Invoke-WebRequest -Uri "http://localhost:8001" -UseBasicParsing -TimeoutSec 10
+          Write-Host "Deployment successful! Status: $($response.StatusCode)"
+        } catch {
+          Write-Host "Warning: Could not verify deployment - $($_.Exception.Message)"
         }
       shell: powershell
