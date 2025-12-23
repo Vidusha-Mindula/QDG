@@ -70,7 +70,34 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    dbContext.Database.EnsureCreated();
+
+    var connectionString = builder.Configuration.GetConnectionString("AppDatabase") ?? "Data Source=app_v2.db";
+    var dbPath = connectionString.Replace("Data Source=", "").Split(';')[0].Trim();
+
+    if (!Path.IsPathRooted(dbPath))
+    {
+        dbPath = Path.Combine(AppContext.BaseDirectory, dbPath);
+    }
+
+    var directory = Path.GetDirectoryName(dbPath);
+    if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+    {
+        Directory.CreateDirectory(directory);
+        Console.WriteLine($"Created directory: {directory}");
+    }
+
+    Console.WriteLine($"Database will be created at: {dbPath}");
+
+    try
+    {
+        dbContext.Database.EnsureCreated();
+        Console.WriteLine("Database created successfully!");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error creating database: {ex.Message}");
+        throw;
+    }
 }
 
 if (!app.Environment.IsDevelopment())

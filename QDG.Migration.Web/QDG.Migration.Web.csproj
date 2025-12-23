@@ -3,8 +3,6 @@
     <ItemGroup>
       <ProjectReference Include="..\QDG.Migration.Core\QDG.Migration.Core.csproj" />
       <ProjectReference Include="..\QDG.Migration.Data\QDG.Migration.Data.csproj" />
-      <ProjectReference Include="..\QDG.Migration.Core\QDG.Migration.Core.csproj" />
-      <ProjectReference Include="..\QDG.Migration.Data\QDG.Migration.Data.csproj" />
     </ItemGroup>
 
     <ItemGroup>
