@@ -9,7 +9,7 @@ on:
 env:
   CONTAINER_NAME: 'qdg-migration'
   IMAGE_NAME: 'qdg-migration-app'
-  HOST_PORT: '8001'
+  HOST_PORT: '8002'
   CONTAINER_PORT: '80'
 
 jobs:
